@@ -186,7 +186,7 @@ async function getFinReportTourOperator(year) {
           WHEN rf.refund_date=f.departure_date and tr.route_number_in_tour = 1 then r.ticket_price*ot.number_of_people*0.5
           WHEN rf.refund_id is null then r.ticket_price*ot.number_of_people*0.1
           ELSE 0
-          END) as touroperator_profit
+          END) as tour_operator_profit
           FROM OrderedTours ot
           JOIN OrderedFlights of ON of.ordered_tour_id = ot.ordered_tour_id
           JOIN Flights f ON f.flight_id = of.flight_id
@@ -197,7 +197,6 @@ async function getFinReportTourOperator(year) {
       `,
       [yearStart,yearEnd]
     );
-    profit = profit[0].profit * 0.1;
     return profit;
   } catch (error) {
     console.error('Error:', error.message);
