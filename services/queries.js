@@ -54,8 +54,8 @@ async function addOrderedTour(req) {
             JOIN TourRoutes tr ON ot.tour_id = tr.tour_id
             JOIN Routes r ON r.route_id = tr.route_id
             JOIN Flights f ON f.route_id = r.route_id
-            WHERE ot.ordered_tour_id = ordered_tour_id
-        `
+            WHERE ot.ordered_tour_id = ?
+        `, [ordered_tour_id]
     );
   } catch (error) {
     console.error('Error:', error.message);
