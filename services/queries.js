@@ -35,7 +35,6 @@ function getQuery(query, params = []) {
   });
 }
 //todo нужно чтобы полеты были в правильном порядке и не было такого что полет следующий в туре идет перед прошлым (путешествие во времени)
-//todo добавить транзакции
 async function addOrderedTour(req) {
   try {
     // Вставка данных о заказанном туре
@@ -79,22 +78,25 @@ async function getFlightsByDateAndDirection(req) {
   try {
     return await allQuery(
       `
-      SELECT 
-        f.flight_id, 
-        f.departure_date, 
-        a.city,
-        (p.capacity - SUM(ot.number_of_people)) AS free_seats
-      FROM
-        Flights f
-        JOIN OrderedFlights of ON of.flight_id = f.flight_id
+        SELECT
+         f.flight_id,
+         a.city as destination_city,
+         p.capacity,
+         (p.capacity-SUM(CASE
+         WHEN rf.refund_id is not null then ot.number_of_people
+         ELSE 0
+         END)) as free_seats
+        FROM OrderedFlights of
         JOIN OrderedTours ot ON ot.ordered_tour_id = of.ordered_tour_id
+        JOIN Refunds rf ON rf.ordered_tour_id = ot.ordered_tour_id
+        JOIN Flights f ON of.flight_id = f.flight_id
         JOIN Routes r ON r.route_id = f.route_id
-        JOIN Planes p ON p.plane_id = r.plane_id
         JOIN Airports a ON a.airport_id = r.destination_airport_id
-      WHERE f.departure_date = ? AND a.city = ?
-      GROUP BY f.flight_id
+        JOIN Planes p ON p.plane_id = r.plane_id
+        WHERE a.city = ? AND f.departure_date = ?
+        GROUP BY f.flight_id
       `,
-      [req.date, req.destination]
+      [req.destination,req.date]
     );
   } catch (error) {
     console.error('Error:', error.message);
@@ -126,47 +128,45 @@ async function getToursByDatePeriodAndCity(req) {
   try {
     return await allQuery(
       `
-      SELECT 
-        Airports.city,
-        Tours.tour_id,
-        Flights.departure_date
-      FROM
-        Flights,
-        Tours,
-        Airports
-      WHERE
-        Airports.city = ? AND Flights.departure_date BETWEEN ? AND ?
-      GROUP BY
-        Airports.city,
-        Flights.departure_date
+        SELECT ot.tour_id, a.city, ot.tour_start_week
+        FROM OrderedTours ot
+        JOIN TourRoutes tr ON tr.tour_id = ot.tour_id
+        JOIN Routes r ON r.route_id = tr.route_id
+        JOIN Airports a ON r.departure_airport_id = a.airport_id or r.destination_airport_id = a.airport_id
+        WHERE ot.tour_start_week BETWEEN ? and ? AND a.city = ?
+        GROUP BY ot.tour_id
       `,
-      [ req.city, req.date.start,req.date.end]
+      [  req.date.start,req.date.end,req.city]
     );
   } catch (error) {
     console.error('Error:', error.message);
     throw new Error('Failed to get tours');
   }
 }
-//TODO добавить проверку в refunds
 async function getFinReportAvia(year) {
   try {
     const yearStart = `${year}-01-01`;
     const yearEnd = `${year}-12-31`;
     return await allQuery(
       `
-        SELECT 
-          Airlines.name,
-          SUM(CASE WHEN Refunds.refund_date = Flights.departure_date THEN Routes.ticket_price * 0.5 WHEN Refunds.refund_date IS NOT NULL THEN 0 ELSE Routes.ticket_price END) AS profit
-        FROM
-          Flights
-          INNER JOIN Routes ON (Flights.route_id = Routes.route_id)
-          INNER JOIN Planes ON (Routes.plane_id = Planes.plane_id)
-          INNER JOIN Airlines ON (Planes.airline_id = Airlines.airline_id),
-          OrderedTours
-          LEFT OUTER JOIN Refunds ON (OrderedTours.ordered_tour_id = Refunds.ordered_tour_id)
-        WHERE Flights.departure_date BETWEEN ? AND ?
-        GROUP BY
-          Airlines.name
+          SELECT
+           a.name,
+           SUM(CASE
+           WHEN rf.refund_date=f.departure_date and tr.route_number_in_tour=1 then r.ticket_price*OT.number_of_people*0.5
+           WHEN rf.refund_id is null then r.ticket_price*ot.number_of_people*0.9
+           ELSE 0
+           end) as airline_profit
+          FROM
+           OrderedFlights of
+           JOIN OrderedTours ot ON of.ordered_tour_id = ot.ordered_tour_id
+           LEFT JOIN Refunds rf ON rf.ordered_tour_id = ot.ordered_tour_id
+           JOIN Flights f ON f.flight_id = of.flight_id
+           JOIN Routes r ON r.route_id = f.route_id
+           JOIN TourRoutes tr ON tr.tour_id = ot.tour_id and tr.route_id = r.route_id
+           JOIN Planes p ON p.plane_id = r.plane_id
+           JOIN Airlines a ON a.airline_id = p.airline_id
+          WHERE f.departure_date BETWEEN ? and ?
+          GROUP BY a.airline_id
       `,
       [yearStart,yearEnd]
     );
@@ -182,13 +182,18 @@ async function getFinReportTourOperator(year) {
     const yearEnd = `${year}-12-31`;
      let profit = await allQuery(
       `
-        SELECT 
-          SUM(Routes.ticket_price) AS profit
-        FROM
-          Flights
-          INNER JOIN Routes ON (Flights.route_id = Routes.route_id),
-          OrderedTours
-        WHERE Flights.departure_date BETWEEN ? AND ?
+          SELECT sum(CASE
+          WHEN rf.refund_date=f.departure_date and tr.route_number_in_tour = 1 then r.ticket_price*ot.number_of_people*0.5
+          WHEN rf.refund_id is null then r.ticket_price*ot.number_of_people*0.1
+          ELSE 0
+          END) as touroperator_profit
+          FROM OrderedTours ot
+          JOIN OrderedFlights of ON of.ordered_tour_id = ot.ordered_tour_id
+          JOIN Flights f ON f.flight_id = of.flight_id
+          JOIN Routes r ON r.route_id = f.route_id
+          JOIN TourRoutes tr ON tr.route_id = r.route_id AND tr.tour_id = ot.tour_id
+          left JOIN Refunds rf ON rf.ordered_tour_id = ot.ordered_tour_id
+          WHERE ot.booking_date BETWEEN ? and ?
       `,
       [yearStart,yearEnd]
     );
