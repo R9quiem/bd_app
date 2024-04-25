@@ -80,22 +80,19 @@ async function getFlightsByDateAndDirection(req) {
     return await allQuery(
       `
       SELECT 
-          f.flight_id, 
-          f.departure_date, 
-          a.city,
-          (p.capacity - IFNULL(SUM(ot.number_of_people), 0)) AS free_seats,
-      p.capacity
-      FROM FLIGHTS f
-      JOIN Routes r ON f.route_id = r.route_id
-      JOIN Airports a ON a.airport_id = r.destination_airport_id
-      JOIN Planes p ON p.plane_id = r.plane_id
-      LEFT JOIN OrderedTours ot ON f.departure_date = ot.tour_start_week
+        f.flight_id, 
+        f.departure_date, 
+        a.city,
+        (p.capacity - SUM(ot.number_of_people)) AS free_seats
+      FROM
+        Flights f
+        JOIN OrderedFlights of ON of.flight_id = f.flight_id
+        JOIN OrderedTours ot ON ot.ordered_tour_id = of.ordered_tour_id
+        JOIN Routes r ON r.route_id = f.route_id
+        JOIN Planes p ON p.plane_id = r.plane_id
+        JOIN Airports a ON a.airport_id = r.destination_airport_id
       WHERE f.departure_date = ? AND a.city = ?
-      GROUP BY 
-          f.flight_id, 
-          f.departure_date, 
-          a.city,
-          p.capacity;
+      GROUP BY f.flight_id
       `,
       [req.date, req.destination]
     );
