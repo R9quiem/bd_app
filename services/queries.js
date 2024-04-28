@@ -62,6 +62,36 @@ async function addOrderedTour(req) {
     throw new Error('Failed to add ordered tour and ordered flights');
   }
 }
+async function registerClient(req) {
+  try {
+    // Вставка данных о заказанном туре
+    const client = await runQuery(
+        `
+            INSERT INTO Clients (name,password,email,registration_date)
+            VALUES (?, ?, ?, datetime('now'));`
+        ,[req.name,req.password,req.email]
+    );
+    return client.lastID;
+  } catch (error) {
+    console.error('Error:', error.message);
+    throw new Error('Failed to add register user');
+  }
+}
+async function loginClient(req) {
+  try {
+    // Вставка данных о заказанном туре
+    const client = await getQuery(
+        `
+            SELECT * FROM Clients
+            WHERE email = ? and password = ?;`
+        ,[req.email,req.password]
+    );
+    return client.id;
+  } catch (error) {
+    console.error('Error:', error.message);
+    throw new Error('Failed to add login user');
+  }
+}
 async function getOrderedTours() {
   try {
     return await allQuery(
@@ -74,6 +104,7 @@ async function getOrderedTours() {
     throw new Error('Failed to get orderedTours');
   }
 }
+
 async function getFlightsByDateAndDirection(req) {
   try {
     return await allQuery(
@@ -204,6 +235,37 @@ async function getFinReportTourOperator(year) {
   }
 }
 
+async function getTours() {
+  try {
+    return await allQuery(
+        `
+          SELECT * FROM Tours
+      `
+    );
+  } catch (error) {
+    console.error('Error:', error.message);
+    throw new Error('Failed to get tours');
+  }
+}
+
+async function getTourRoutes(tour_id) {
+  try {
+    return await allQuery(
+        `
+          select r.route_id, tr.route_number_in_tour,(select a.city from Airports a where a.airport_id = r.departure_airport_id) as departure_city,(select a.city from Airports a where a.airport_id = r.destination_airport_id) as destination_city,r.plane_id,r.departure_time,r.flight_duration,r.ticket_price
+          from Tours t
+          JOIN TourRoutes tr ON t.tour_id = tr.tour_id
+          join Routes r ON r.route_id = tr.route_id
+          where t.tour_id = ?
+          order by tr.route_number_in_tour
+      `,[tour_id]
+    );
+  } catch (error) {
+    console.error('Error:', error.message);
+    throw new Error('Failed to get tourRoutes');
+  }
+}
+
 module.exports = {
   addOrderedTour,
   getOrderedTours,
@@ -211,5 +273,9 @@ module.exports = {
   addRefund,
   getToursByDatePeriodAndCity,
   getFinReportAvia,
-  getFinReportTourOperator
+  getFinReportTourOperator,
+  getTours,
+  getTourRoutes,
+  loginClient,
+  registerClient
 };

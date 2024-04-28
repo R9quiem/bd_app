@@ -1,9 +1,9 @@
 const express = require('express');
 const queries = require('./services/queries');
-
+const cors = require('cors');
 const app = express();
-const port = 3000;
-
+const port = 8080;
+app.use(cors());
 app.use(express.json());
 //app.use('/api', routes);
 
@@ -50,7 +50,29 @@ app.post('/refund', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-app.get('/tours', async (req, res) => {
+app.post('/registration', async (req, res) => {
+  try {
+    const client_id = await queries.registerClient(req.body);
+    res.json(client_id);
+  } catch (error) {
+    console.error('Error:', error.message);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+app.get('/login', async (req, res) => {
+  try {
+    const params = {
+      email: req.query.email,
+      password: req.query.password
+    }
+    const client_id = await queries.loginClient(params);
+    res.json(client_id);
+  } catch (error) {
+    console.error('Error:', error.message);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+app.get('/tours-by-date-and-city', async (req, res) => {
   try {
     const params = {
       city: req.query.city,
@@ -58,6 +80,25 @@ app.get('/tours', async (req, res) => {
       end: req.query.end
     }
     const data = await queries.getToursByDatePeriodAndCity(params);
+    res.json(data);
+  } catch (error) {
+    console.error('Error:', error.message);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+app.get('/tours', async (req, res) => {
+  try {
+    const data = await queries.getTours();
+    res.json(data);
+  } catch (error) {
+    console.error('Error:', error.message);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+app.get('/tour-routes/:id', async (req, res) => {
+  try {
+    const tour_id = req.params.id;
+    const data = await queries.getTourRoutes(tour_id);
     res.json(data);
   } catch (error) {
     console.error('Error:', error.message);
