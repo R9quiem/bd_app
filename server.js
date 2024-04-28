@@ -28,6 +28,7 @@ app.get('/ordered-tours', async (req, res) => {
   }
 });
 
+
 app.get('/flights', async (req, res) => {
   try {
     const params = {
@@ -95,10 +96,30 @@ app.get('/tours', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
+app.get('/client-tours', async (req, res) => {
+  try {
+    const _client_id = req.query.client_id;
+    const data = await queries.getClientTours(_client_id);
+    res.json(data);
+  } catch (error) {
+    console.error('Error:', error.message);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
 app.get('/tour-routes/:id', async (req, res) => {
   try {
     const tour_id = req.params.id;
     const data = await queries.getTourRoutes(tour_id);
+    res.json(data);
+  } catch (error) {
+    console.error('Error:', error.message);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+app.get('/ordered-tour-flights/:id', async (req, res) => {
+  try {
+    const ordered_tour_id = req.params.id;
+    const data = await queries.getOrderedTourFlights(ordered_tour_id);
     res.json(data);
   } catch (error) {
     console.error('Error:', error.message);
@@ -117,6 +138,15 @@ app.get('/fin-report-avia', async (req, res) => {
 app.get('/fin-report-touroperator', async (req, res) => {
   try {
     const data = await queries.getFinReportTourOperator(req.query.year);
+    res.json(data);
+  } catch (error) {
+    console.error('Error:', error.message);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+app.get('/ordered-tour/:id', async (req, res) => {
+  try {
+    const data = await queries.getOrderedTour(req.query.id);
     res.json(data);
   } catch (error) {
     console.error('Error:', error.message);
