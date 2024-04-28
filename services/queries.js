@@ -72,6 +72,7 @@ async function registerClient(req) {
         ,[req.name,req.password,req.email]
     );
     return client.lastID;
+
   } catch (error) {
     console.error('Error:', error.message);
     throw new Error('Failed to add register user');
