@@ -44,8 +44,6 @@ async function addOrderedTour(req) {
             VALUES (?, ?, ?, ?,datetime('now'));`
       ,[req.tour_id,req.client_id,req.start_week,req.number_of_people]
     );
-    console.log(ordered_tour_id);
-
     // Вставка данных о полете для всех заказанных туров с tour_id = 1
     await runQuery(
       `
@@ -146,7 +144,7 @@ async function addRefund(req) {
     return await runQuery(
       `
       INSERT INTO Refunds (ordered_tour_id,refund_date)
-      VALUES (?,?)`
+      VALUES (?,date(?))`
       ,
       [req.ordered_tour_id, req.refund_date]
 
@@ -161,7 +159,7 @@ async function getToursByDatePeriodAndCity(req) {
   try {
     return await allQuery(
       `
-        SELECT ot.tour_id, a.city, ot.tour_start_week
+        SELECT ot.ordered_tour_id,ot.tour_id, a.city, ot.tour_start_week
         FROM OrderedTours ot
         JOIN TourRoutes tr ON tr.tour_id = ot.tour_id
         JOIN Routes r ON r.route_id = tr.route_id
@@ -169,11 +167,11 @@ async function getToursByDatePeriodAndCity(req) {
         WHERE ot.tour_start_week BETWEEN ? and ? AND a.city = ?
         GROUP BY ot.tour_id
       `,
-      [  req.date.start,req.date.end,req.city]
+      [  req.start,req.end,req.city]
     );
   } catch (error) {
     console.error('Error:', error.message);
-    throw new Error('Failed to get tours');
+    throw new Error('Failed to get tours by date and city');
   }
 }
 async function getFinReportAvia(year) {
@@ -249,6 +247,18 @@ async function getTours() {
     throw new Error('Failed to get tours');
   }
 }
+async function getRefunds() {
+  try {
+    return await allQuery(
+      `
+          SELECT * FROM Refunds
+      `
+    );
+  } catch (error) {
+    console.error('Error:', error.message);
+    throw new Error('Failed to get refunds');
+  }
+}
 async function getOrderedTour(ordered_tour_id) {
   try {
     const ordered_tour = await getQuery(
@@ -260,11 +270,10 @@ async function getOrderedTour(ordered_tour_id) {
     return ordered_tour.ordered_tour_id
   } catch (error) {
     console.error('Error:', error.message);
-    throw new Error('Failed to get tours');
+    throw new Error('Failed to get ordered tours');
   }
 }
 async function getClientTours(client_id) {
-  console.log(client_id);
   try {
     return await allQuery(
       `
@@ -274,7 +283,7 @@ async function getClientTours(client_id) {
     );
   } catch (error) {
     console.error('Error:', error.message);
-    throw new Error('Failed to get tours');
+    throw new Error('Failed to get Client Tours');
   }
 }
 
@@ -312,9 +321,22 @@ async function getOrderedTourFlights(tour_id) {
     );
   } catch (error) {
     console.error('Error:', error.message);
-    throw new Error('Failed to get OrderedTourRoutes');
+    throw new Error('Failed to get OrderedTourFlights');
   }
 }
+async function getCities() {
+  try {
+    return await allQuery(
+      `
+          SELECT * FROM Airports
+      `
+    );
+  } catch (error) {
+    console.error('Error:', error.message);
+    throw new Error('Failed to get Cities');
+  }
+}
+
 
 module.exports = {
   addOrderedTour,
@@ -330,5 +352,7 @@ module.exports = {
   registerClient,
   getClientTours,
   getOrderedTourFlights,
-  getOrderedTour
+  getOrderedTour,
+  getCities,
+  getRefunds
 };

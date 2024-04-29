@@ -27,6 +27,15 @@ app.get('/ordered-tours', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
+app.get('/cities', async (req, res) => {
+  try {
+    const data = await queries.getCities();
+    res.json(data);
+  } catch (error) {
+    console.error('Error:', error.message);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
 
 
 app.get('/flights', async (req, res) => {
@@ -45,6 +54,15 @@ app.get('/flights', async (req, res) => {
 app.post('/refund', async (req, res) => {
   try {
     const data = await queries.addRefund(req.body);
+    res.json(data);
+  } catch (error) {
+    console.error('Error:', error.message);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
+app.get('/refunds', async (req, res) => {
+  try {
+    const data = await queries.getRefunds();
     res.json(data);
   } catch (error) {
     console.error('Error:', error.message);
@@ -73,7 +91,7 @@ app.get('/login', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-app.get('/tours-by-date-and-city', async (req, res) => {
+  app.get('/tours-by-date-and-city', async (req, res) => {
   try {
     const params = {
       city: req.query.city,
