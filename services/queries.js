@@ -336,6 +336,24 @@ async function getCities() {
     throw new Error('Failed to get Cities');
   }
 }
+async function airlineAdd(number) {
+  try {
+    for(let i = 0; i < number; i++)
+    {
+      await runQuery(
+        `
+          INSERT into Airlines (name)
+          values (?)
+      `,[`Airline ${i}`]
+      );
+    }
+    return "success";
+  } catch (error) {
+    console.error('Error:', error.message);
+    throw new Error('Failed to add airlines');
+  }
+}
+
 
 
 module.exports = {
@@ -354,5 +372,6 @@ module.exports = {
   getOrderedTourFlights,
   getOrderedTour,
   getCities,
-  getRefunds
+  getRefunds,
+  airlineAdd
 };

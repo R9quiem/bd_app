@@ -171,6 +171,15 @@ app.get('/ordered-tour/:id', async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });
+app.post('/airline-add', async (req, res) => {
+  try {
+    const data = await queries.airlineAdd(req.body.number);
+    res.json(data);
+  } catch (error) {
+    console.error('Error:', error.message);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+});
 // Запуск сервера
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
