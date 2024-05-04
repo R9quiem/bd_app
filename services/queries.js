@@ -1,4 +1,5 @@
 const db = require('./database');
+const constants = require("constants");
 function runQuery(query, params = []) {
   return new Promise((resolve, reject) => {
     db.run(query, params, function(err) {
@@ -36,23 +37,46 @@ function getQuery(query, params = []) {
 }
 //todo нужно чтобы полеты были в правильном порядке и не было такого что полет следующий в туре идет перед прошлым (путешествие во времени)
 async function addOrderedTour(req) {
+  function convertWeekToDate(weekString) {// Разбиваем строку по дефису
+    const parts = weekString.split('-');
+    // Получаем год и номер недели
+    const year = parseInt(parts[0]);
+    const week = parseInt(parts[1]);
+    // Получаем дату первого дня недели
+    const date = new Date(year, 0, 1 + (week - 1) * 7);
+    // Получаем день недели
+    const dayOfWeek = date.getDay();
+    // Вычитаем дни до понедельника текущей недели
+    date.setDate(date.getDate() - dayOfWeek + 1);
+    // Форматируем дату в строку 'yyyy-mm-dd'
+    const formattedDate = date.toISOString().slice(0, 10);
+    return formattedDate;  }
   try {
     // Вставка данных о заказанном туре
     const ordered_tour_id = await runQuery(
-      `
+    `            
             INSERT INTO OrderedTours (tour_id,client_id, tour_start_week, number_of_people, booking_date)
             VALUES (?, ?, ?, ?,datetime('now'));`
-      ,[req.tour_id,req.client_id,req.start_week,req.number_of_people]
-    );
-    // Вставка данных о полете для всех заказанных туров с tour_id = 1
+        ,[req.tour_id,req.client_id,req.start_week,req.number_of_people]
+  );
     await runQuery(
-      `
-            INSERT INTO OrderedFlights (ordered_tour_id,flight_id)
-            SELECT ot.ordered_tour_id, f.flight_id
+    ` 
+            INSERT INTO Flights (departure_date,route_id)
+            SELECT date(?,'+' || rd.day_of_week_id || ' days'),r.route_id
             FROM OrderedTours ot
-            JOIN TourRoutes tr ON ot.tour_id = tr.tour_id
+            JOIN TourRoutes tr ON ot.tour_id = tr.tour_id            
             JOIN Routes r ON r.route_id = tr.route_id
-            JOIN Flights f ON f.route_id = r.route_id
+            JOIN RouteDays rd ON rd.route_id = r.route_id            
+            WHERE ot.ordered_tour_id = ?;
+            `,[convertWeekToDate(req.start_week),ordered_tour_id.lastID]);
+    await runQuery(
+        `
+            INSERT INTO OrderedFlights (ordered_tour_id,flight_id)
+            SELECT ot.ordered_tour_id, f.flight_id            
+            FROM OrderedTours ot
+            JOIN TourRoutes tr ON ot.tour_id = tr.tour_id            
+            JOIN Routes r ON r.route_id = tr.route_id
+            JOIN Flights f ON f.route_id = r.route_id            
             WHERE ot.ordered_tour_id = ?
         `, [ordered_tour_id.lastID]
     );
@@ -119,7 +143,7 @@ async function getFlightsByDateAndDirection(req) {
          END)) as free_seats
         FROM OrderedFlights of
         JOIN OrderedTours ot ON ot.ordered_tour_id = of.ordered_tour_id
-        JOIN Refunds rf ON rf.ordered_tour_id = ot.ordered_tour_id
+        left JOIN Refunds rf ON rf.ordered_tour_id = ot.ordered_tour_id
         JOIN Flights f ON of.flight_id = f.flight_id
         JOIN Routes r ON r.route_id = f.route_id
         JOIN Airports a ON a.airport_id = r.destination_airport_id
@@ -134,10 +158,8 @@ async function getFlightsByDateAndDirection(req) {
     throw new Error('Failed to get flights');
   }
 }
-/*
-TODO: добавить проверку на то существует ли ordered tour (или она есть)
-TODO: дата текущая должна быть
-*/
+
+
 async function addRefund(req) {
   try {
     console.log(req)
@@ -181,12 +203,17 @@ async function getFinReportAvia(year) {
     return await allQuery(
       `
           SELECT
-           a.name,
-           SUM(CASE
-           WHEN rf.refund_date=f.departure_date and tr.route_number_in_tour=1 then r.ticket_price*OT.number_of_people*0.5
-           WHEN rf.refund_id is null then r.ticket_price*ot.number_of_people*0.9
-           ELSE 0
-           end) as airline_profit
+          a.name,
+          SUM(r.ticket_price*ot.number_of_people*0.9) as 'all',
+          SUM(CASE
+          WHEN rf.refund_date=f.departure_date and tr.route_number_in_tour=1 then r.ticket_price*OT.number_of_people*0.9*0.5
+          WHEN rf.refund_id is not null then r.ticket_price*OT.number_of_people*0.9
+          end) as losses,
+          SUM(CASE
+          WHEN rf.refund_date=f.departure_date and tr.route_number_in_tour=1 then r.ticket_price*OT.number_of_people*0.25
+          WHEN rf.refund_id is null then r.ticket_price*ot.number_of_people*0.9
+          ELSE 0
+          end) as airline_profit
           FROM
            OrderedFlights of
            JOIN OrderedTours ot ON of.ordered_tour_id = ot.ordered_tour_id
@@ -211,13 +238,19 @@ async function getFinReportTourOperator(year) {
   try {
     const yearStart = `${year}-01-01`;
     const yearEnd = `${year}-12-31`;
-     let profit = await allQuery(
+     return  await allQuery(
       `
-          SELECT sum(CASE
-          WHEN rf.refund_date=f.departure_date and tr.route_number_in_tour = 1 then r.ticket_price*ot.number_of_people*0.5
+          SELECT
+          SUM(r.ticket_price*ot.number_of_people*0.1) as 'all',
+          SUM(CASE
+          WHEN rf.refund_date=f.departure_date and tr.route_number_in_tour=1 then r.ticket_price*OT.number_of_people*0.25
+          WHEN rf.refund_id is not null then r.ticket_price*OT.number_of_people*0.1
+          end) as losses,
+          SUM(CASE
+          WHEN rf.refund_date=f.departure_date and tr.route_number_in_tour=1 then r.ticket_price*OT.number_of_people*0.25
           WHEN rf.refund_id is null then r.ticket_price*ot.number_of_people*0.1
           ELSE 0
-          END) as tour_operator_profit
+          end) as touroperator_profit
           FROM OrderedTours ot
           JOIN OrderedFlights of ON of.ordered_tour_id = ot.ordered_tour_id
           JOIN Flights f ON f.flight_id = of.flight_id
@@ -228,7 +261,6 @@ async function getFinReportTourOperator(year) {
       `,
       [yearStart,yearEnd]
     );
-    return profit;
   } catch (error) {
     console.error('Error:', error.message);
     throw new Error('Failed to get fin report for touroperator');

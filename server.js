@@ -21,6 +21,7 @@ app.post('/ordered-tours', async (req, res) => {
 app.get('/ordered-tours', async (req, res) => {
   try {
     const data = await queries.getOrderedTours();
+
     res.json(data);
   } catch (error) {
     console.error('Error:', error.message);
@@ -98,7 +99,9 @@ app.get('/login', async (req, res) => {
       start: req.query.start,
       end: req.query.end
     }
+    console.log(params);
     const data = await queries.getToursByDatePeriodAndCity(params);
+
     res.json(data);
   } catch (error) {
     console.error('Error:', error.message);
